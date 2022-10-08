@@ -9,7 +9,8 @@ from marshmallow import Schema, fields
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
+app.config['RESTX_JSON'] = {'ensure_ascii': False, 'indent' : 4}
+
 
 # Формирование базы данных
 db = SQLAlchemy(app)
@@ -62,6 +63,8 @@ class MovieSchema(Schema):
     rating = fields.Float()
     genre_id = fields.Integer()
     director_id = fields.Integer()
+    genre = fields.Method()
+    director = fields.Method()
 
 
 # Формирование схемы Director
@@ -84,169 +87,175 @@ directors_schema = DirectorSchema(many=True)
 genre_schema = GenreSchema()
 genres_schema = GenreSchema(many=True)
 
+movie = Movie.query.get(1)
+movie_dic = movie_schema.dump(movie)
+print(movie)
+print(movie_dic)
+print(movie.genre)
+print(movie_dic.get('genre'))
 
-@ns_movies.route('/')
-class MoviesView(Resource):
-    def get(self):
-        """ Формирование представления для получения фильмов"""
-
-        movies = Movie.query.all()
-        requested_director_id = request.args.get("director_id")
-        requested_genre_id = request.args.get("genre_id")
-        requested_page = request.args.get("page")
-
-        # При квери-запросе по страницам выводится 5 фильмов/страница
-        if requested_page:
-            movies = Movie.query.limit(5).offset(int(requested_page) * 5 - 5)
-
-        # При квери-запросе по director
-        if requested_director_id:
-            movies = Movie.query.filter(Movie.director_id == requested_director_id).all()
-
-        # При квери-запросе по genre
-        if requested_genre_id:
-            movies = Movie.query.filter(Movie.genre_id == requested_genre_id).all()
-
-        # При квери-запросе по director и genre
-        if requested_genre_id and requested_genre_id:
-            movies = Movie.query.filter(Movie.genre_id == requested_genre_id,
-                                        Movie.director_id == requested_director_id)
-
-        # Если запрос возвращает пустой список, то ошибка
-        if len(movies_schema.dump(movies)) == 0:
-            return '', 404
-        return movies_schema.dump(movies), 200
-
-
-@ns_movies.route('/<int:mid>')
-class MovieView(Resource):
-    def get(self, mid):
-        """
-        Формирование представления для получения фильма по id
-        В случае отсутствия фильма - ошибка
-        """
-
-        try:
-            movie = Movie.query.filter(Movie.id == mid).one()
-            return movie_schema.dump(movie), 200
-        except Exception as e:
-            return f'{e}', 404
-
-
-@ns_directors.route('/')
-class DirectorsView(Resource):
-    def post(self):
-        """
-        Формирование представления для добавления нового режиссера
-        """
-
-        json_req = request.json
-        director_added = Director(**json_req)
-        db.session.add(director_added)
-        db.session.commit()
-        return '', 201
-
-
-@ns_directors.route('/<int:did>')
-class DirectorView(Resource):
-    def get(self, did):
-        """
-        Формирование представления для получения режиссера по id
-        В случае отсутствия фильма - ошибка
-        """
-
-        try:
-            director = Director.query.filter(Director.id == did).one()
-        except Exception as e:
-            return f'{e}', 404
-        return director_schema.dump(director)
-
-    def put(self, did):
-        """
-        Формирование представления для изменения данных режиссера по id
-        В случае отсутствия режиссера - ошибка
-        """
-
-        director = Director.query.get(did)
-        if not director:
-            return '', 404
-
-        json_req = request.json
-        director.name = json_req.get("name")
-        db.session.add(director)
-        db.session.commit()
-        return '', 204
-
-    def delete(self, did):
-        """
-        Формирование представления для удалени режиссера по id
-        В случае отсутствия режиссера - ошибка
-        """
-
-        director = Director.query.get(did)
-        if not director:
-            return '', 404
-        db.session.delete(director)
-        db.session.commit()
-        return '', 204
-
-
-@ns_genres.route('/')
-class GenresView(Resource):
-    def post(self):
-        """
-        Формирование представления для добавления нового режиссера
-        """
-
-        json_req = request.json
-        genre_added = Genre(**json_req)
-        db.session.add(genre_added)
-        db.session.commit()
-        return '', 201
-
-
-@ns_genres.route('/<int:did>')
-class GenreView(Resource):
-    def get(self, did):
-        """
-        Формирование представления для получения жанра по id
-        В случае отсутствия жанра - ошибка
-        """
-
-        try:
-            genre = Genre.query.filter(Genre.id == did).one()
-        except Exception as e:
-            return f'{e}', 404
-        return genre_schema.dump(genre)
-
-    def put(self, did):
-        """
-        Формирование представления для изменения данных жанра по id
-        В случае отсутствия жанра - ошибка
-        """
-
-        genre = Genre.query.get(did)
-        if not genre:
-            return '', 404
-
-        json_req = request.json
-        genre.name = json_req.get("name")
-        db.session.add(genre)
-        db.session.commit()
-        return '', 204
-
-    def delete(self, did):
-        """
-        Формирование представления для удалени жанра по id
-        В случае отсутствия жанра - ошибка
-        """
-        genre = Genre.query.get(did)
-        if not genre:
-            return '', 404
-        db.session.delete(genre)
-        db.session.commit()
-        return '', 204
-
-
-if __name__ == '__main__':
-    app.run(port=22000)
+# @ns_movies.route('/')
+# class MoviesView(Resource):
+#     def get(self):
+#         """ Формирование представления для получения фильмов"""
+#
+#         movies = Movie.query.all()
+#         requested_director_id = request.args.get("director_id")
+#         requested_genre_id = request.args.get("genre_id")
+#         requested_page = request.args.get("page")
+#
+#         # При квери-запросе по страницам выводится 5 фильмов/страница
+#         if requested_page:
+#             movies = Movie.query.limit(5).offset(int(requested_page) * 5 - 5)
+#
+#         # При квери-запросе по director
+#         if requested_director_id:
+#             movies = Movie.query.filter(Movie.director_id == requested_director_id).all()
+#
+#         # При квери-запросе по genre
+#         if requested_genre_id:
+#             movies = Movie.query.filter(Movie.genre_id == requested_genre_id).all()
+#
+#         # При квери-запросе по director и genre
+#         if requested_genre_id and requested_genre_id:
+#             movies = Movie.query.filter(Movie.genre_id == requested_genre_id,
+#                                         Movie.director_id == requested_director_id)
+#
+#         # Если запрос возвращает пустой список, то ошибка
+#         if len(movies_schema.dump(movies)) == 0:
+#             return '', 404
+#         return movies_schema.dump(movies), 200
+#
+#
+# @ns_movies.route('/<int:mid>')
+# class MovieView(Resource):
+#     def get(self, mid):
+#         """
+#         Формирование представления для получения фильма по id
+#         В случае отсутствия фильма - ошибка
+#         """
+#
+#         try:
+#             movie = Movie.query.filter(Movie.id == mid).one()
+#             return movie_schema.dump(movie), 200
+#         except Exception as e:
+#             return f'{e}', 404
+#
+#
+# @ns_directors.route('/')
+# class DirectorsView(Resource):
+#     def post(self):
+#         """
+#         Формирование представления для добавления нового режиссера
+#         """
+#
+#         json_req = request.json
+#         director_added = Director(**json_req)
+#         db.session.add(director_added)
+#         db.session.commit()
+#         return '', 201
+#
+#
+# @ns_directors.route('/<int:did>')
+# class DirectorView(Resource):
+#     def get(self, did):
+#         """
+#         Формирование представления для получения режиссера по id
+#         В случае отсутствия фильма - ошибка
+#         """
+#
+#         try:
+#             director = Director.query.filter(Director.id == did).one()
+#         except Exception as e:
+#             return f'{e}', 404
+#         return director_schema.dump(director)
+#
+#     def put(self, did):
+#         """
+#         Формирование представления для изменения данных режиссера по id
+#         В случае отсутствия режиссера - ошибка
+#         """
+#
+#         director = Director.query.get(did)
+#         if not director:
+#             return '', 404
+#
+#         json_req = request.json
+#         director.name = json_req.get("name")
+#         db.session.add(director)
+#         db.session.commit()
+#         return '', 204
+#
+#     def delete(self, did):
+#         """
+#         Формирование представления для удалени режиссера по id
+#         В случае отсутствия режиссера - ошибка
+#         """
+#
+#         director = Director.query.get(did)
+#         if not director:
+#             return '', 404
+#         db.session.delete(director)
+#         db.session.commit()
+#         return '', 204
+#
+#
+# @ns_genres.route('/')
+# class GenresView(Resource):
+#     def post(self):
+#         """
+#         Формирование представления для добавления нового режиссера
+#         """
+#
+#         json_req = request.json
+#         genre_added = Genre(**json_req)
+#         db.session.add(genre_added)
+#         db.session.commit()
+#         return '', 201
+#
+#
+# @ns_genres.route('/<int:did>')
+# class GenreView(Resource):
+#     def get(self, did):
+#         """
+#         Формирование представления для получения жанра по id
+#         В случае отсутствия жанра - ошибка
+#         """
+#
+#         try:
+#             genre = Genre.query.filter(Genre.id == did).one()
+#         except Exception as e:
+#             return f'{e}', 404
+#         return genre_schema.dump(genre)
+#
+#     def put(self, did):
+#         """
+#         Формирование представления для изменения данных жанра по id
+#         В случае отсутствия жанра - ошибка
+#         """
+#
+#         genre = Genre.query.get(did)
+#         if not genre:
+#             return '', 404
+#
+#         json_req = request.json
+#         genre.name = json_req.get("name")
+#         db.session.add(genre)
+#         db.session.commit()
+#         return '', 204
+#
+#     def delete(self, did):
+#         """
+#         Формирование представления для удалени жанра по id
+#         В случае отсутствия жанра - ошибка
+#         """
+#         genre = Genre.query.get(did)
+#         if not genre:
+#             return '', 404
+#         db.session.delete(genre)
+#         db.session.commit()
+#         return '', 204
+#
+#
+# if __name__ == '__main__':
+#     app.run(port=22000)
